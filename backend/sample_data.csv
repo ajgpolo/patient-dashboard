@@ -1,0 +1,10 @@
+test_name,value,unit,reference_range,date,patient_id
+Vitamin D,25.3,ng/mL,30-100,2024-03-01,DEMO123
+Vitamin B12,450,pg/mL,200-900,2024-03-01,DEMO123
+Iron,95,μg/dL,60-170,2024-03-01,DEMO123
+Vitamin D,28.1,ng/mL,30-100,2024-02-01,DEMO123
+Vitamin B12,420,pg/mL,200-900,2024-02-01,DEMO123
+Iron,88,μg/dL,60-170,2024-02-01,DEMO123
+Vitamin D,22.5,ng/mL,30-100,2024-01-01,DEMO123
+Vitamin B12,380,pg/mL,200-900,2024-01-01,DEMO123
+Iron,82,μg/dL,60-170,2024-01-01,DEMO123 
