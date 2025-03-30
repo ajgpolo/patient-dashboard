@@ -2,7 +2,9 @@ export interface LabResult {
   title: string;
   value: number;
   range: string;
-  status?: 'normal' | 'high' | 'low';
+  status: 'normal' | 'high' | 'low';
+  unit: string;
+  date: string;
 }
 
 export interface PatientRecommendations {
@@ -12,11 +14,4 @@ export interface PatientRecommendations {
   self_care_recommendations: string[];
   recommended_supplements: string[];
   recommended_medications: string[];
-}
-
-export interface DashboardState {
-  labResults: LabResult[];
-  recommendations: PatientRecommendations | null;
-  loading: boolean;
-  error: string | null;
 } 

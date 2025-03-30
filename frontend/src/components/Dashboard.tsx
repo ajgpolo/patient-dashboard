@@ -7,18 +7,39 @@ import {
   Typography,
   CircularProgress,
   Alert,
+  Button,
+  Card,
+  CardContent,
 } from '@mui/material';
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
-} from 'recharts';
+import { styled } from '@mui/material/styles';
 import { LabResult, PatientRecommendations } from '../types';
+import LocationOnIcon from '@mui/icons-material/LocationOn';
+import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
+import RestaurantIcon from '@mui/icons-material/Restaurant';
+import LocalPharmacyIcon from '@mui/icons-material/LocalPharmacy';
+import FeedbackIcon from '@mui/icons-material/Feedback';
+import axios from 'axios';
+
+const StyledCard = styled(Paper)(({ theme }) => ({
+  padding: theme.spacing(2),
+  borderRadius: theme.spacing(2),
+  backgroundColor: '#ffffff',
+}));
+
+const ActionCard = styled(Card)(({ theme }) => ({
+  marginBottom: theme.spacing(1.5),
+  borderRadius: theme.spacing(2),
+  cursor: 'pointer',
+  '&:hover': {
+    backgroundColor: theme.palette.grey[50],
+  },
+}));
+
+interface BiologicalAge {
+  biologicalAge: number;
+  chronologicalAge: number;
+  analysis: string;
+}
 
 interface DashboardProps {
   patientId: string;
@@ -27,26 +48,22 @@ interface DashboardProps {
 export default function Dashboard({ patientId }: DashboardProps) {
   const [labResults, setLabResults] = useState<LabResult[]>([]);
   const [recommendations, setRecommendations] = useState<PatientRecommendations | null>(null);
+  const [biologicalAge, setBiologicalAge] = useState<BiologicalAge | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [resultsResponse, recommendationsResponse] = await Promise.all([
-          fetch('http://localhost:8000/api/lab-results'),
-          fetch(`http://localhost:8000/api/recommendations/${patientId}`)
+        const [resultsResponse, recommendationsResponse, bioAgeResponse] = await Promise.all([
+          axios.get('http://localhost:8000/api/lab-results'),
+          axios.get('http://localhost:8000/api/recommendations'),
+          axios.get('http://localhost:8000/api/biological-age')
         ]);
 
-        if (!resultsResponse.ok || !recommendationsResponse.ok) {
-          throw new Error('Failed to fetch data');
-        }
-
-        const results = await resultsResponse.json();
-        const recommendations = await recommendationsResponse.json();
-
-        setLabResults(results);
-        setRecommendations(recommendations);
+        setLabResults(resultsResponse.data);
+        setRecommendations(recommendationsResponse.data);
+        setBiologicalAge(bioAgeResponse.data);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'An error occurred');
       } finally {
@@ -73,134 +90,143 @@ export default function Dashboard({ patientId }: DashboardProps) {
     );
   }
 
-  // Group lab results by test name for trending
-  const testGroups = labResults.reduce((acc, result) => {
-    if (!acc[result.test_name]) {
-      acc[result.test_name] = [];
-    }
-    acc[result.test_name].push({
-      ...result,
-      date: new Date(result.date).toLocaleDateString(),
-    });
-    return acc;
-  }, {} as Record<string, LabResult[]>);
+  const normalResults = labResults.filter(result => result.status === 'normal').length;
+  const outOfRangeResults = labResults.filter(result => result.status !== 'normal').length;
 
   return (
-    <Container maxWidth="lg">
-      <Box sx={{ my: 4 }}>
-        <Typography variant="h4" component="h1" gutterBottom>
-          Health Dashboard
-        </Typography>
+    <Container maxWidth="lg" sx={{ py: 3 }}>
+      <Grid container spacing={3}>
+        {/* Left Column */}
+        <Grid item xs={12} md={8}>
+          {/* Upcoming Lab Visit */}
+          <StyledCard sx={{ mb: 3 }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5 }}>
+              <Typography variant="h6">Upcoming Lab Visit</Typography>
+              <ArrowForwardIcon />
+            </Box>
+            <Box sx={{ display: 'flex', gap: 2 }}>
+              <Box sx={{ 
+                width: 100, 
+                height: 100, 
+                bgcolor: '#f5f5f5', 
+                borderRadius: 2,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}>
+                <LocationOnIcon sx={{ color: '#ff4444', fontSize: 32 }} />
+              </Box>
+              <Box>
+                <Typography variant="body2" color="textSecondary">Annual Lab Visit (1 of 2)</Typography>
+                <Typography variant="h6" sx={{ my: 0.5 }}>Wed, Mar 28, 2024</Typography>
+                <Typography variant="body2">9:15 AM — Quest Diagnostics</Typography>
+                <Typography variant="body2" color="textSecondary">2148 Patterson Road, New York</Typography>
+              </Box>
+            </Box>
+            <Box sx={{ mt: 1.5 }}>
+              <Typography variant="subtitle2">Appointment Code</Typography>
+              <Typography variant="h4" sx={{ fontFamily: 'monospace', mt: 0.5 }}>VNGBAQ</Typography>
+            </Box>
+          </StyledCard>
 
-        <Grid container spacing={3}>
-          {/* Lab Results Trends */}
-          {Object.entries(testGroups).map(([testName, results]) => (
-            <Grid item xs={12} md={6} key={testName}>
-              <Paper sx={{ p: 3 }}>
-                <Typography variant="h6" gutterBottom>
-                  {testName} Trend
+          {/* Biological Age */}
+          <StyledCard sx={{ mb: 3 }}>
+            <Typography variant="h6" gutterBottom>Biological Age Analysis</Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 4, my: 2 }}>
+              <Box sx={{ textAlign: 'center' }}>
+                <Typography variant="h3" sx={{ color: '#2196f3', fontWeight: 'bold' }}>
+                  {biologicalAge?.biologicalAge || '-'}
                 </Typography>
-                <ResponsiveContainer width="100%" height={300}>
-                  <LineChart data={results}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="date" />
-                    <YAxis />
-                    <Tooltip />
-                    <Legend />
-                    <Line
-                      type="monotone"
-                      dataKey="value"
-                      stroke="#8884d8"
-                      name={`${testName} (${results[0]?.unit || ''})`}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              </Paper>
-            </Grid>
-          ))}
+                <Typography variant="body2" color="textSecondary">Biological Age</Typography>
+              </Box>
+              <Box sx={{ textAlign: 'center' }}>
+                <Typography variant="h3" sx={{ color: '#4caf50', fontWeight: 'bold' }}>
+                  {biologicalAge?.chronologicalAge || '-'}
+                </Typography>
+                <Typography variant="body2" color="textSecondary">Chronological Age</Typography>
+              </Box>
+            </Box>
+            <Box sx={{ bgcolor: '#f5f5f5', p: 1.5, borderRadius: 2 }}>
+              <Typography variant="body2" color="textSecondary">
+                {biologicalAge?.analysis || 'Upload lab results to see your biological age analysis.'}
+              </Typography>
+            </Box>
+            <Button variant="text" size="small" sx={{ mt: 1 }}>View detailed analysis</Button>
+          </StyledCard>
 
-          {/* Recommendations */}
-          {recommendations && (
-            <>
-              <Grid item xs={12}>
-                <Paper sx={{ p: 3 }}>
-                  <Typography variant="h5" gutterBottom>
-                    Clinician Summary
-                  </Typography>
-                  <Typography paragraph>
-                    {recommendations.clinician_summary}
-                  </Typography>
-                </Paper>
-              </Grid>
-
-              <Grid item xs={12} md={6}>
-                <Paper sx={{ p: 3 }}>
-                  <Typography variant="h5" gutterBottom>
-                    Recommended Foods
-                  </Typography>
-                  <ul>
-                    {recommendations.recommended_foods.map((food, index) => (
-                      <li key={index}>{food}</li>
-                    ))}
-                  </ul>
-                </Paper>
-              </Grid>
-
-              <Grid item xs={12} md={6}>
-                <Paper sx={{ p: 3 }}>
-                  <Typography variant="h5" gutterBottom>
-                    Foods to Limit
-                  </Typography>
-                  <ul>
-                    {recommendations.foods_to_limit.map((food, index) => (
-                      <li key={index}>{food}</li>
-                    ))}
-                  </ul>
-                </Paper>
-              </Grid>
-
-              <Grid item xs={12}>
-                <Paper sx={{ p: 3 }}>
-                  <Typography variant="h5" gutterBottom>
-                    Self-Care Recommendations
-                  </Typography>
-                  <ul>
-                    {recommendations.self_care_recommendations.map((rec, index) => (
-                      <li key={index}>{rec}</li>
-                    ))}
-                  </ul>
-                </Paper>
-              </Grid>
-
-              <Grid item xs={12} md={6}>
-                <Paper sx={{ p: 3 }}>
-                  <Typography variant="h5" gutterBottom>
-                    Recommended Supplements
-                  </Typography>
-                  <ul>
-                    {recommendations.recommended_supplements.map((supp, index) => (
-                      <li key={index}>{supp}</li>
-                    ))}
-                  </ul>
-                </Paper>
-              </Grid>
-
-              <Grid item xs={12} md={6}>
-                <Paper sx={{ p: 3 }}>
-                  <Typography variant="h5" gutterBottom>
-                    Recommended Medications
-                  </Typography>
-                  <ul>
-                    {recommendations.recommended_medications.map((med, index) => (
-                      <li key={index}>{med}</li>
-                    ))}
-                  </ul>
-                </Paper>
-              </Grid>
-            </>
-          )}
+          {/* All Biomarkers */}
+          <StyledCard>
+            <Typography variant="h6" gutterBottom>All Biomarkers</Typography>
+            <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
+              <Box sx={{ flex: 1 }}>
+                <Typography variant="h3" sx={{ color: '#4caf50' }}>{normalResults}</Typography>
+                <Typography variant="body2" color="textSecondary">In Range</Typography>
+              </Box>
+              <Box sx={{ flex: 1 }}>
+                <Typography variant="h3" sx={{ color: '#ff9800' }}>{outOfRangeResults}</Typography>
+                <Typography variant="body2" color="textSecondary">Out of Range</Typography>
+              </Box>
+              <Box sx={{ flex: 1 }}>
+                <Typography variant="h3" sx={{ color: '#2196f3' }}>12</Typography>
+                <Typography variant="body2" color="textSecondary">Improving</Typography>
+              </Box>
+            </Box>
+            <Button variant="outlined" size="small" fullWidth>View all</Button>
+          </StyledCard>
         </Grid>
-      </Box>
+
+        {/* Right Column */}
+        <Grid item xs={12} md={4}>
+          <StyledCard>
+            <Typography variant="h6" gutterBottom>Your Action Plan</Typography>
+            
+            {/* Foods Section */}
+            <ActionCard>
+              <CardContent sx={{ display: 'flex', alignItems: 'center', gap: 2, py: 1.5, '&:last-child': { pb: 1.5 } }}>
+                <RestaurantIcon />
+                <Box sx={{ flex: 1 }}>
+                  <Typography variant="subtitle1">Foods</Typography>
+                  <Typography variant="body2" color="textSecondary">
+                    {recommendations?.recommended_foods.slice(0, 3).join(', ')}...
+                  </Typography>
+                </Box>
+                <ArrowForwardIcon />
+              </CardContent>
+            </ActionCard>
+
+            {/* Supplements Section */}
+            <ActionCard>
+              <CardContent sx={{ display: 'flex', alignItems: 'center', gap: 2, py: 1.5, '&:last-child': { pb: 1.5 } }}>
+                <LocalPharmacyIcon />
+                <Box sx={{ flex: 1 }}>
+                  <Typography variant="subtitle1">Supplements</Typography>
+                  <Typography variant="body2" color="textSecondary">
+                    {recommendations?.recommended_supplements.slice(0, 3).join(', ')}...
+                  </Typography>
+                </Box>
+                <ArrowForwardIcon />
+              </CardContent>
+            </ActionCard>
+
+            {/* Feedback Section */}
+            <Box sx={{ mt: 3 }}>
+              <Typography variant="subtitle1" gutterBottom>How are we doing?</Typography>
+              <Typography variant="body2" color="textSecondary" gutterBottom>
+                Please take a moment to tell us how we can make this experience better for you.
+              </Typography>
+              <Button
+                variant="contained"
+                fullWidth
+                size="small"
+                startIcon={<FeedbackIcon />}
+                sx={{ mt: 1.5 }}
+              >
+                Share Feedback
+              </Button>
+            </Box>
+          </StyledCard>
+        </Grid>
+      </Grid>
     </Container>
   );
 } 

@@ -1,66 +1,83 @@
 import React, { useCallback, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
-import {
-  Box,
-  Paper,
-  Typography,
-  Button,
-  CircularProgress,
-  Alert,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-} from '@mui/material';
-import { CloudUpload as CloudUploadIcon } from '@mui/icons-material';
+import axios from 'axios';
+import { Box, Typography, Paper, Alert, CircularProgress } from '@mui/material';
+import { styled } from '@mui/material/styles';
+import { LabResult } from '../types';
 
-interface PreviewData {
-  test_name: string;
-  value: number;
-  unit: string;
-  reference_range: string;
-  date: string;
-  patient_id: string;
+interface UploadResponse {
+  message: string;
+  count: number;
+  results: LabResult[];
 }
 
-export default function AdminUpload() {
-  const [previewData, setPreviewData] = useState<PreviewData[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
+const DropzoneContainer = styled(Paper)(({ theme }) => ({
+  padding: theme.spacing(4),
+  textAlign: 'center',
+  cursor: 'pointer',
+  border: `2px dashed ${theme.palette.primary.main}`,
+  '&:hover': {
+    backgroundColor: theme.palette.action.hover,
+  },
+}));
+
+const AdminUpload: React.FC = () => {
+  const [uploadStatus, setUploadStatus] = useState<{
+    loading: boolean;
+    error: string | null;
+    success: boolean;
+    results?: LabResult[];
+  }>({
+    loading: false,
+    error: null,
+    success: false,
+  });
 
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
-    const file = acceptedFiles[0];
-    if (!file) return;
+    if (acceptedFiles.length === 0) return;
 
-    setLoading(true);
-    setError(null);
-    setSuccess(null);
+    const file = acceptedFiles[0];
+    if (file.type !== 'text/csv') {
+      setUploadStatus({
+        loading: false,
+        error: 'Please upload a CSV file',
+        success: false,
+      });
+      return;
+    }
+
+    setUploadStatus({
+      loading: true,
+      error: null,
+      success: false,
+    });
 
     const formData = new FormData();
     formData.append('file', file);
 
     try {
-      const response = await fetch('http://localhost:8000/api/admin/upload-lab-results', {
-        method: 'POST',
-        body: formData,
+      const response = await axios.post<UploadResponse>(
+        'http://localhost:8000/api/admin/upload-lab-results',
+        formData,
+        {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+          },
+        }
+      );
+
+      setUploadStatus({
+        loading: false,
+        error: null,
+        success: true,
+        results: response.data.results,
       });
-
-      if (!response.ok) {
-        throw new Error('Failed to upload file');
-      }
-
-      const result = await response.json();
-      setSuccess(`Successfully uploaded ${result.count} lab results`);
-      
-      // Reset preview after successful upload
-      setPreviewData([]);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred');
-    } finally {
-      setLoading(false);
+    } catch (error) {
+      setUploadStatus({
+        loading: false,
+        error: error instanceof Error ? error.message : 'Failed to upload file',
+        success: false,
+      });
     }
   }, []);
 
@@ -73,81 +90,89 @@ export default function AdminUpload() {
   });
 
   return (
-    <Box sx={{ my: 4 }}>
-      <Typography variant="h4" component="h2" gutterBottom>
+    <Box sx={{ maxWidth: 600, mx: 'auto', p: 3 }}>
+      <Typography variant="h4" gutterBottom>
         Upload Lab Results
       </Typography>
+      
+      <Typography variant="body1" sx={{ mb: 2 }}>
+        Please upload a CSV file with the following columns:
+      </Typography>
+      
+      <Box sx={{ mb: 3 }}>
+        <Typography variant="body2" component="div">
+          <ul>
+            <li>Column 1: Lab Title</li>
+            <li>Column 2: Lab Value (numeric)</li>
+            <li>Column 3: Normal/Healthy Range (e.g., "10-20")</li>
+          </ul>
+        </Typography>
+      </Box>
 
-      <Paper
-        {...getRootProps()}
-        sx={{
-          p: 3,
-          mb: 4,
-          border: '2px dashed',
-          borderColor: isDragActive ? 'primary.main' : 'grey.300',
-          backgroundColor: isDragActive ? 'action.hover' : 'background.paper',
-          cursor: 'pointer',
-          textAlign: 'center',
-        }}
-      >
+      <DropzoneContainer {...getRootProps()}>
         <input {...getInputProps()} />
-        <CloudUploadIcon sx={{ fontSize: 48, color: 'primary.main', mb: 2 }} />
-        <Typography variant="h6" gutterBottom>
-          {isDragActive
-            ? 'Drop the CSV file here'
-            : 'Drag and drop a CSV file here, or click to select'}
-        </Typography>
-        <Typography variant="body2" color="textSecondary">
-          Only CSV files are accepted
-        </Typography>
-      </Paper>
+        {isDragActive ? (
+          <Typography>Drop the CSV file here...</Typography>
+        ) : (
+          <Typography>Drag and drop a CSV file here, or click to select one</Typography>
+        )}
+      </DropzoneContainer>
 
-      {loading && (
-        <Box sx={{ display: 'flex', justifyContent: 'center', my: 4 }}>
+      {uploadStatus.loading && (
+        <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
           <CircularProgress />
         </Box>
       )}
 
-      {error && (
-        <Alert severity="error" sx={{ mb: 4 }}>
-          {error}
+      {uploadStatus.error && (
+        <Alert severity="error" sx={{ mt: 2 }}>
+          {uploadStatus.error}
         </Alert>
       )}
 
-      {success && (
-        <Alert severity="success" sx={{ mb: 4 }}>
-          {success}
+      {uploadStatus.success && (
+        <Alert severity="success" sx={{ mt: 2 }}>
+          Successfully uploaded {uploadStatus.results?.length} lab results!
         </Alert>
       )}
 
-      {previewData.length > 0 && (
-        <TableContainer component={Paper} sx={{ mt: 4 }}>
-          <Table>
-            <TableHead>
-              <TableRow>
-                <TableCell>Test Name</TableCell>
-                <TableCell>Value</TableCell>
-                <TableCell>Unit</TableCell>
-                <TableCell>Reference Range</TableCell>
-                <TableCell>Date</TableCell>
-                <TableCell>Patient ID</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {previewData.map((row, index) => (
-                <TableRow key={index}>
-                  <TableCell>{row.test_name}</TableCell>
-                  <TableCell>{row.value}</TableCell>
-                  <TableCell>{row.unit}</TableCell>
-                  <TableCell>{row.reference_range}</TableCell>
-                  <TableCell>{row.date}</TableCell>
-                  <TableCell>{row.patient_id}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
+      {uploadStatus.success && uploadStatus.results && (
+        <Box sx={{ mt: 3 }}>
+          <Typography variant="h6" gutterBottom>
+            Uploaded Results Preview:
+          </Typography>
+          <Paper sx={{ p: 2 }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr>
+                  <th style={{ padding: '8px', textAlign: 'left', borderBottom: '1px solid #ddd' }}>Lab Title</th>
+                  <th style={{ padding: '8px', textAlign: 'left', borderBottom: '1px solid #ddd' }}>Value</th>
+                  <th style={{ padding: '8px', textAlign: 'left', borderBottom: '1px solid #ddd' }}>Range</th>
+                  <th style={{ padding: '8px', textAlign: 'left', borderBottom: '1px solid #ddd' }}>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {uploadStatus.results.map((result, index) => (
+                  <tr key={index}>
+                    <td style={{ padding: '8px', borderBottom: '1px solid #ddd' }}>{result.title}</td>
+                    <td style={{ padding: '8px', borderBottom: '1px solid #ddd' }}>{result.value}</td>
+                    <td style={{ padding: '8px', borderBottom: '1px solid #ddd' }}>{result.range}</td>
+                    <td style={{ 
+                      padding: '8px', 
+                      borderBottom: '1px solid #ddd',
+                      color: result.status === 'normal' ? 'green' : result.status === 'high' ? 'red' : 'orange'
+                    }}>
+                      {result.status}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </Paper>
+        </Box>
       )}
     </Box>
   );
-} 
+};
+
+export default AdminUpload; 
